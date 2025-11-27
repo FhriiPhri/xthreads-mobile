@@ -201,6 +201,132 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Tambahan: ambil semua repost untuk thread dan tampilkan di bottom sheet
+  Future<void> _fetchAndShowReposts(dynamic threadId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/threads/$threadId/reposts'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final reposts = data['data'] ?? [];
+
+        // Debug: lihat struktur response
+        print('Reposts Response: $reposts');
+
+        if (!mounted) return;
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: const Color(0xFF0B1220),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          builder: (context) {
+            return SizedBox(
+              height: 400,
+              child: reposts.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Text(
+                          'No reposts yet',
+                          style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: reposts.length,
+                      separatorBuilder: (_, __) => const Divider(color: Colors.grey),
+                      itemBuilder: (context, index) {
+                        final r = reposts[index];
+                        
+                        // Debug print setiap item
+                        print('Repost item $index: $r');
+                        
+                        // Coba cari user dari berbagai struktur kemungkinan
+                        String username = 'Unknown';
+                        if (r is Map<String, dynamic>) {
+                          // Kemungkinan 1: nested user object
+                          if (r['user'] is Map && r['user']['username'] != null) {
+                            username = r['user']['username'];
+                          }
+                          // Kemungkinan 2: reposted_by object
+                          else if (r['reposted_by'] is Map && r['reposted_by']['username'] != null) {
+                            username = r['reposted_by']['username'];
+                          }
+                          // Kemungkinan 3: direct username field
+                          else if (r['username'] != null) {
+                            username = r['username'];
+                          }
+                        }
+                        
+                        final createdAt = (r['created_at'] ?? '').toString();
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFF6366F1),
+                            child: Text(
+                              username.isNotEmpty ? username[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          title: Text(
+                            username,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          subtitle: Text(
+                            createdAt.isNotEmpty ? _formatTime(createdAt) : '',
+                            style: const TextStyle(color: Color(0xFF9CA3AF)),
+                          ),
+                        );
+                      },
+                    ),
+            );
+          },
+        );
+      } else {
+        throw Exception('Failed to fetch reposts');
+      }
+    } catch (e) {
+      _showSnackbar('Error fetching reposts: ${e.toString()}');
+    }
+  }
+
+  // Tambahan: toggle repost (post/delete) lalu reload timeline
+  Future<void> _toggleRepost(dynamic threadId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}/threads/$threadId/toggle-repost'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        await _loadTimeline();
+        _showSnackbar('Repost updated');
+      } else {
+        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        throw Exception(body['message'] ?? 'Failed to toggle repost');
+      }
+    } catch (e) {
+      _showSnackbar('Error toggling repost: ${e.toString()}');
+    }
+  }
+
   Widget _buildImageWidget(String? imageUrl) {
     if (imageUrl == null || imageUrl.isEmpty) return const SizedBox.shrink();
 
@@ -481,10 +607,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             IconButton(
                               onPressed: _pickImage,
-                              icon: SvgPicture.asset(
-                                'assets/icons/image.svg',
-                                color: const Color(0xFF818CF8),
-                                width: 24,
+                              icon: const Icon(
+                                Icons.image,
+                                color: Color(0xFF818CF8),
+                                size: 24,
                               ),
                             ),
                             Text(
@@ -548,10 +674,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SvgPicture.asset(
-                        'assets/icons/thread.svg',
-                        color: const Color(0xFF818CF8),
-                        width: 64,
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Color(0xFF818CF8),
+                        size: 64,
                       ),
                       const SizedBox(height: 16),
                       const Text(
@@ -600,20 +726,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
                               children: [
-                                SvgPicture.asset(
-                                  'assets/icons/repost.svg',
-                                  color: const Color(0xFF818CF8),
-                                  width: 16,
+                                const Icon(
+                                  Icons.repeat,
+                                  color: Color(0xFF818CF8),
+                                  size: 16,
                                 ),
                                 const SizedBox(width: 4),
-                                GestureDetector(
-                                  onTap: () => _navigateToProfile(item['reposted_by']['username']),
-                                  child: Text(
-                                    '${item['reposted_by']['username']} reposted',
-                                    style: const TextStyle(
-                                      color: Color(0xFF9CA3AF),
-                                      fontSize: 12,
-                                    ),
+                                Text(
+                                  '${item['reposted_by']['username']} reposted',
+                                  style: const TextStyle(
+                                    color: Color(0xFF9CA3AF),
+                                    fontSize: 12,
                                   ),
                                 ),
                               ],
@@ -689,9 +812,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         Icons.chat_bubble_outline,
                                         thread['replies_count'].toString(),
                                       ),
-                                      _buildActionButton(
-                                        Icons.repeat,
-                                        thread['reposts_count'].toString(),
+                                      // Ganti tombol repost supaya bisa tap untuk fetch dan longPress untuk toggle
+                                      GestureDetector(
+                                        onTap: () => _toggleRepost(thread['id']),
+                                        onLongPress: () => _fetchAndShowReposts(thread['id']),
+                                        child: _buildActionButton(
+                                          Icons.repeat,
+                                          (thread['reposts_count'] ?? 0).toString(),
+                                          color: (thread['is_reposted'] ?? thread['reposted_by_me'] ?? false)
+                                              ? const Color(0xFF10B981)
+                                              : null,
+                                        ),
                                       ),
                                       _buildActionButton(
                                         thread['is_liked']
