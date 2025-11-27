@@ -26,11 +26,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isPosting = false;
   bool _isLoadingTimeline = true;
   List<dynamic> _timeline = [];
+  Map<String, dynamic>? _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
+    _loadUserProfile();
     _loadTimeline();
+  }
+
+  // Fungsi baru untuk mengambil data profil user
+  Future<void> _loadUserProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.get(
+        Uri.parse(ApiService.baseUrl + '/auth/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _currentUser = data['data']['user'];
+        });
+      }
+    } catch (e) {
+      // Silent fail - akan tetap menggunakan widget.user
+    }
+  }
+
+  // Helper untuk mendapatkan URL foto profil lengkap
+  String _getProfilePhotoUrl(String? photo) {
+    if (photo == null || photo.isEmpty) return '';
+    return photo;
   }
 
   Future<void> _logout() async {
@@ -200,6 +234,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // Widget untuk menampilkan foto profil
+  Widget _buildProfilePhoto(String? photoUrl, String username, {double radius = 20}) {
+    final fullPhotoUrl = _getProfilePhotoUrl(photoUrl);
+    
+    if (fullPhotoUrl.isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: const Color(0xFF6366F1),
+        child: Text(
+          username[0].toUpperCase(),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: radius * 0.7,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF374151),
+      child: ClipOval(
+        child: Image.network(
+          fullPhotoUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: const Color(0xFF6366F1),
+              child: Center(
+                child: Text(
+                  username[0].toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: radius * 0.7,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(
       context,
@@ -221,10 +315,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUsername = _currentUser?['username'] ?? widget.user['username'];
+    final currentPhoto = _currentUser?['photo'];
+
     return Scaffold(
       backgroundColor: const Color(0xFF111827),
       body: RefreshIndicator(
-        onRefresh: _loadTimeline,
+        onRefresh: () async {
+          await _loadUserProfile();
+          await _loadTimeline();
+        },
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
@@ -240,7 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   Text(
-                    'Welcome back, ${widget.user['username']}!',
+                    'Welcome back, $currentUsername!',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Color(0xFF9CA3AF),
@@ -274,18 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: const Color(0xFF6366F1),
-                          child: Text(
-                            widget.user['username'][0].toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        _buildProfilePhoto(currentPhoto, currentUsername),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
@@ -493,18 +582,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundColor: const Color(0xFF6366F1),
-                              child: Text(
-                                user['username'][0].toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                            _buildProfilePhoto(user['photo'], user['username'], radius: 24),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
