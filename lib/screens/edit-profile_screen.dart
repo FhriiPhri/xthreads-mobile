@@ -15,7 +15,7 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
-  static const String baseUrl = "http://127.0.0.1:8000/api";
+  static const String baseUrl = "http://192.168.110.126:8000/api";
 
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _usernameController;

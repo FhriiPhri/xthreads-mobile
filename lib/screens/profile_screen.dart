@@ -18,7 +18,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
-  static const String baseUrl = "http://127.0.0.1:8000/api";
+  static const String baseUrl = "http://192.168.110.126:8000/api";
 
   late TabController _tabController;
   bool _isLoading = true;
@@ -314,7 +314,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     final likesCount = _userData?['likes_count'] ?? 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A).withOpacity(0.5),
         borderRadius: BorderRadius.circular(24),
