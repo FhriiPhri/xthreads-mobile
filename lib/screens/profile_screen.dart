@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
+import 'package:xthreads_mobile/screens/edit-profile_screen.dart';
+// Import EditProfilePage - adjust path as needed
+// import 'edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? username;
+  final int? userId;
 
-  const ProfilePage({Key? key, this.username}) : super(key: key);
+  const ProfilePage({Key? key, this.username, this.userId}) : super(key: key);
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -18,7 +23,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   late TabController _tabController;
   bool _isLoading = true;
   Map<String, dynamic>? _userData;
-  List<dynamic> _timeline = [];
+  List<dynamic> _allThreads = [];
+  List<dynamic> _replies = [];
+  List<dynamic> _media = [];
+  List<dynamic> _likes = [];
   bool _isOwnProfile = false;
   bool _isFollowing = false;
 
@@ -41,7 +49,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         throw Exception('Token tidak ditemukan');
       }
 
-      // Get current user data first
       final meResponse = await http.get(
         Uri.parse('$baseUrl/auth/me'),
         headers: {
@@ -52,15 +59,26 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
       if (meResponse.statusCode == 200) {
         final meData = jsonDecode(meResponse.body);
-        final currentUsername = meData['data']?['user']?['username'] ?? '';
+        
+        final currentUsername = meData['data']?['user']?['username'] ?? 
+                                meData['user']?['username'] ?? '';
+        final currentUserId = meData['data']?['user']?['id'] ?? 
+                              meData['user']?['id'];
 
-        // Check if viewing own profile or someone else's
-        final targetUsername = widget.username ?? currentUsername;
-        _isOwnProfile = targetUsername == currentUsername;
+        String targetIdentifier;
+        if (widget.userId != null) {
+          targetIdentifier = widget.userId.toString();
+          _isOwnProfile = widget.userId == currentUserId;
+        } else if (widget.username != null) {
+          targetIdentifier = widget.username!;
+          _isOwnProfile = widget.username == currentUsername;
+        } else {
+          targetIdentifier = currentUserId.toString();
+          _isOwnProfile = true;
+        }
 
-        // Get profile data
         final profileResponse = await http.get(
-          Uri.parse('$baseUrl/users/$targetUsername'),
+          Uri.parse('$baseUrl/users/$targetIdentifier'),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -69,26 +87,31 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
         if (profileResponse.statusCode == 200) {
           final profileData = jsonDecode(profileResponse.body);
+          final timeline = profileData['data']?['timeline'] ?? [];
 
           setState(() {
-            _userData = profileData['data']?['user'];
-            _timeline = profileData['data']?['timeline'] ?? [];
+            _userData = profileData['data']?['user'] ?? profileData['user'];
+            _allThreads = List.from(timeline);
+            
+            // Filter for different tabs
+            _replies = timeline.where((t) => t['type'] == 'reply').toList();
+            _media = timeline.where((t) => t['image'] != null).toList();
+            _likes = timeline.where((t) => t['is_liked'] == true).toList();
+            
             _isFollowing = profileData['data']?['is_following'] ?? false;
             _isLoading = false;
           });
         } else {
           throw Exception('Gagal memuat profil');
         }
-      } else {
-        throw Exception('Gagal memuat data user');
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -97,8 +120,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
     try {
       final token = await _getToken();
-      if (token == null) throw Exception('Token tidak ditemukan');
-
       final response = await http.post(
         Uri.parse('$baseUrl/users/${_userData!['username']}/follow'),
         headers: {
@@ -112,15 +133,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           _isFollowing = true;
           _userData!['followers_count'] = (_userData!['followers_count'] ?? 0) + 1;
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Berhasil follow user')),
-        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -129,10 +148,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
     try {
       final token = await _getToken();
-      if (token == null) throw Exception('Token tidak ditemukan');
-
       final response = await http.delete(
-        Uri.parse('$baseUrl/users/${_userData!['username']}/unfollow'),
+        Uri.parse('$baseUrl/users/${_userData!['username']}/follow'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -144,71 +161,62 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           _isFollowing = false;
           _userData!['followers_count'] = (_userData!['followers_count'] ?? 1) - 1;
         });
-
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Berhasil unfollow user')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
     }
   }
 
-  Future<void> _likeThread(int threadId, int index) async {
-    if (_timeline.isEmpty) return;
-
+  Future<void> _toggleLike(int threadId, int index, String tabType) async {
     try {
       final token = await _getToken();
-      if (token == null) throw Exception('Token tidak ditemukan');
+      if (token == null) return;
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/threads/$threadId/like'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+      List<dynamic> targetList;
+      switch (tabType) {
+        case 'threads':
+          targetList = _allThreads;
+          break;
+        case 'media':
+          targetList = _media;
+          break;
+        case 'likes':
+          targetList = _likes;
+          break;
+        default:
+          return;
+      }
+
+      if (index >= targetList.length) return;
+      
+      final isLiked = targetList[index]['is_liked'] == true;
+      final url = isLiked 
+          ? '$baseUrl/threads/$threadId/like'
+          : '$baseUrl/threads/$threadId/like';
+      
+      final response = isLiked
+          ? await http.delete(Uri.parse(url), headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            })
+          : await http.post(Uri.parse(url), headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            });
 
       if (response.statusCode == 200) {
         setState(() {
-          _timeline[index]['likes_count'] = (_timeline[index]['likes_count'] ?? 0) + 1;
-          _timeline[index]['is_liked'] = true;
+          targetList[index]['is_liked'] = !isLiked;
+          targetList[index]['likes_count'] = 
+              (targetList[index]['likes_count'] ?? 0) + (isLiked ? -1 : 1);
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  Future<void> _unlikeThread(int threadId, int index) async {
-    if (_timeline.isEmpty) return;
-
-    try {
-      final token = await _getToken();
-      if (token == null) throw Exception('Token tidak ditemukan');
-
-      final response = await http.delete(
-        Uri.parse('$baseUrl/threads/$threadId/unlike'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _timeline[index]['likes_count'] = (_timeline[index]['likes_count'] ?? 1) - 1;
-          _timeline[index]['is_liked'] = false;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      print('Error toggling like: $e');
     }
   }
 
@@ -218,17 +226,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       return const Scaffold(
         backgroundColor: Color(0xFF0F0F0F),
         body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF3B82F6),
-          ),
+          child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
         ),
       );
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      body: CustomScrollView(
-        slivers: [
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
           _buildAppBar(),
           SliverToBoxAdapter(
             child: Column(
@@ -236,17 +242,22 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 _buildProfileHeader(),
                 const SizedBox(height: 16),
                 _buildTabBar(),
-                const SizedBox(height: 16),
               ],
             ),
           ),
-          _buildTabContent(),
         ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildThreadsList(_allThreads, 'threads'),
+            _buildThreadsList(_replies, 'replies'),
+            _buildMediaGrid(_media),
+            _buildThreadsList(_likes, 'likes'),
+          ],
+        ),
       ),
     );
   }
-
-  // ===================== WIDGETS ===================== //
 
   Widget _buildAppBar() {
     final username = _userData?['username'] ?? '';
@@ -293,7 +304,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Widget _buildProfileHeader() {
     final username = _userData?['username'] ?? 'U';
     final coverPhoto = _userData?['cover_photo'];
-    final photo = _userData?['photo'];
     final bio = _userData?['bio'];
     final location = _userData?['location'];
     final createdAt = _userData?['created_at'];
@@ -342,27 +352,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                       width: double.infinity,
                     ),
                   )
-                : Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.black.withOpacity(0.3),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
+                : null,
           ),
 
-          // Profile Info
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar & Actions
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -418,18 +415,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Username
-                      Row(
-                        children: [
-                          Text(
-                            username,
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        username,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                       Text(
                         '@$username',
@@ -544,8 +536,32 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Widget _buildActionButton() {
     if (_isOwnProfile) {
       return ElevatedButton(
-        onPressed: () {
-          // TODO: Navigate to edit profile
+        onPressed: () async {
+          final updatedUser = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditProfilePage(userData: _userData!),
+            ),
+          );
+          
+          // Update local data immediately with new data from edit page
+          if (updatedUser != null && mounted) {
+            setState(() {
+              _userData = {
+                ..._userData!,
+                ...updatedUser,
+              };
+            });
+            
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Profile refreshed successfully!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 1),
+              ),
+            );
+          }
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF374151),
@@ -561,13 +577,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     }
 
     return ElevatedButton(
-      onPressed: () {
-        if (_isFollowing) {
-          _unfollowUser();
-        } else {
-          _followUser();
-        }
-      },
+      onPressed: _isFollowing ? _unfollowUser : _followUser,
       style: ElevatedButton.styleFrom(
         backgroundColor: _isFollowing ? const Color(0xFF374151) : const Color(0xFF3B82F6),
         foregroundColor: Colors.white,
@@ -607,22 +617,21 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF374151).withOpacity(0.5)),
       ),
       child: TabBar(
         controller: _tabController,
-        indicator: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Color(0xFF3B82F6),
-              width: 2,
-            ),
-          ),
+        indicator: BoxDecoration(
+          color: const Color(0xFF3B82F6).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
         ),
-        labelColor: Colors.white,
+        labelColor: const Color(0xFF3B82F6),
         unselectedLabelColor: const Color(0xFF6B7280),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        unselectedLabelStyle: const TextStyle(fontSize: 13),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: 'Threads'),
           Tab(text: 'Replies'),
@@ -633,67 +642,441 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildTabContent() {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            if (_timeline.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(
-                  child: Text(
-                    'No threads yet',
-                    style: TextStyle(color: Colors.white),
+  Widget _buildThreadsList(List<dynamic> threads, String tabType) {
+    if (threads.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _getEmptyIcon(tabType),
+              size: 64,
+              color: const Color(0xFF374151),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _getEmptyMessage(tabType),
+              style: const TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: threads.length,
+      itemBuilder: (context, index) {
+        final thread = threads[index];
+        return _buildThreadCard(thread, index, tabType);
+      },
+    );
+  }
+
+  Widget _buildThreadCard(Map<String, dynamic> thread, int index, String tabType) {
+    final threadType = thread['type'];
+    final isRepost = threadType == 'repost';
+    
+    // For repost, get original author and reposter info
+    final originalUser = isRepost ? (thread['original_user'] ?? {}) : (thread['user'] ?? {});
+    final repostedBy = isRepost ? (thread['reposted_by'] ?? {}) : null;
+    
+    final username = originalUser['username'] ?? _userData?['username'] ?? 'Unknown';
+    final authorPhoto = originalUser['photo'];
+    final reposterUsername = repostedBy?['username'];
+    final reposterPhoto = repostedBy?['photo'];
+    
+    final content = thread['body'] ?? thread['content'] ?? '';
+    final image = thread['image'];
+    final likesCount = thread['likes_count'] ?? 0;
+    final repostsCount = thread['reposts_count'] ?? 0;
+    final repliesCount = thread['replies_count'] ?? 0;
+    final isLiked = thread['is_liked'] == true;
+    final createdAt = thread['created_at'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF374151).withOpacity(0.3),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Repost indicator
+            if (isRepost && reposterUsername != null) ...[
+              Row(
+                children: [
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.repeat,
+                    size: 14,
+                    color: Color(0xFF6B7280),
+                  ),
+                  const SizedBox(width: 8),
+                  // Reposter avatar (small)
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF1A1A1A),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: reposterPhoto != null
+                        ? CircleAvatar(
+                            radius: 9,
+                            backgroundImage: NetworkImage(reposterPhoto),
+                          )
+                        : CircleAvatar(
+                            radius: 9,
+                            backgroundColor: const Color(0xFF8B5CF6),
+                            child: Text(
+                              reposterUsername[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '$reposterUsername reposted',
+                      style: const TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            
+            // Original post header
+            Row(
+              children: [
+                // Original author avatar
+                CircleAvatar(
+                  radius: 20,
+                  backgroundImage: authorPhoto != null 
+                      ? NetworkImage(authorPhoto) 
+                      : null,
+                  backgroundColor: const Color(0xFF3B82F6),
+                  child: authorPhoto == null
+                      ? Text(
+                          username[0].toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        username,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        _formatTimeAgo(createdAt),
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            }
-
-            final thread = _timeline[index];
-            return Card(
-              color: const Color(0xFF1A1A1A),
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                title: Text(
-                  thread['title'] ?? 'Untitled',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                subtitle: Text(
-                  thread['body'] ?? '',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                trailing: IconButton(
-                  icon: Icon(
-                    thread['is_liked'] == true ? Icons.favorite : Icons.favorite_border,
-                    color: thread['is_liked'] == true ? Colors.red : Colors.white,
+                IconButton(
+                  icon: const Icon(
+                    Icons.more_horiz,
+                    color: Color(0xFF6B7280),
                   ),
                   onPressed: () {
-                    final id = thread['id'];
-                    if (thread['is_liked'] == true) {
-                      _unlikeThread(id, index);
-                    } else {
-                      _likeThread(id, index);
-                    }
+                    // TODO: Show options menu
+                  },
+                ),
+              ],
+            ),
+
+            // Content
+            if (content.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                content,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+              ),
+            ],
+
+            // Image
+            if (image != null) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  image,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 200,
+                      color: const Color(0xFF374151),
+                      child: const Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          color: Color(0xFF6B7280),
+                          size: 48,
+                        ),
+                      ),
+                    );
                   },
                 ),
               ),
-            );
-          },
-          childCount: _timeline.isEmpty ? 1 : _timeline.length,
+            ],
+
+            // Actions
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _buildActionButton2(
+                  icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                  count: likesCount,
+                  color: isLiked ? Colors.red : const Color(0xFF6B7280),
+                  onTap: () => _toggleLike(thread['id'], index, tabType),
+                ),
+                const SizedBox(width: 24),
+                _buildActionButton2(
+                  icon: Icons.chat_bubble_outline,
+                  count: repliesCount,
+                  color: const Color(0xFF6B7280),
+                  onTap: () {
+                    // TODO: Navigate to thread detail
+                  },
+                ),
+                const SizedBox(width: 24),
+                _buildActionButton2(
+                  icon: Icons.repeat,
+                  count: repostsCount,
+                  color: const Color(0xFF6B7280),
+                  onTap: () {
+                    // TODO: Repost
+                  },
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(
+                    Icons.share_outlined,
+                    color: Color(0xFF6B7280),
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    // TODO: Share
+                  },
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildActionButton2({
+    required IconData icon,
+    required int count,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Text(
+                _formatCount(count),
+                style: TextStyle(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaGrid(List<dynamic> media) {
+    if (media.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(
+              Icons.photo_library_outlined,
+              size: 64,
+              color: Color(0xFF374151),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No media yet',
+              style: TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: media.length,
+      itemBuilder: (context, index) {
+        final item = media[index];
+        final image = item['image'];
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: image != null
+              ? Image.network(
+                  image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFF374151),
+                      child: const Icon(
+                        Icons.broken_image,
+                        color: Color(0xFF6B7280),
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  color: const Color(0xFF374151),
+                  child: const Icon(
+                    Icons.image,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  IconData _getEmptyIcon(String tabType) {
+    switch (tabType) {
+      case 'threads':
+        return Icons.article_outlined;
+      case 'replies':
+        return Icons.chat_bubble_outline;
+      case 'likes':
+        return Icons.favorite_border;
+      default:
+        return Icons.inbox_outlined;
+    }
+  }
+
+  String _getEmptyMessage(String tabType) {
+    switch (tabType) {
+      case 'threads':
+        return 'No threads yet';
+      case 'replies':
+        return 'No replies yet';
+      case 'likes':
+        return 'No liked threads yet';
+      default:
+        return 'Nothing here';
+    }
   }
 
   String _formatDate(String? dateStr) {
     if (dateStr == null) return '';
     try {
       final date = DateTime.parse(dateStr);
-      return '${date.day}/${date.month}/${date.year}';
+      return DateFormat('MMM yyyy').format(date);
     } catch (_) {
       return '';
     }
+  }
+
+  String _formatTimeAgo(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays > 365) {
+        return '${(difference.inDays / 365).floor()}y';
+      } else if (difference.inDays > 30) {
+        return '${(difference.inDays / 30).floor()}mo';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays}d';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours}h';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes}m';
+      } else {
+        return 'now';
+      }
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _formatCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 }
