@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:xthreads_mobile/screens/login_screen.dart';
+import 'package:xthreads_mobile/screens/profile_screen.dart';
 import 'package:xthreads_mobile/services/api_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -65,6 +66,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _getProfilePhotoUrl(String? photo) {
     if (photo == null || photo.isEmpty) return '';
     return photo;
+  }
+
+  // Navigate ke profile page
+  void _navigateToProfile(String username) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfilePage(username: username),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -234,12 +245,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Widget untuk menampilkan foto profil
-  Widget _buildProfilePhoto(String? photoUrl, String username, {double radius = 20}) {
+  // Widget untuk menampilkan foto profil dengan navigation
+  Widget _buildProfilePhoto(String? photoUrl, String username, {double radius = 20, VoidCallback? onTap}) {
     final fullPhotoUrl = _getProfilePhotoUrl(photoUrl);
     
+    Widget avatarWidget;
+    
     if (fullPhotoUrl.isEmpty) {
-      return CircleAvatar(
+      avatarWidget = CircleAvatar(
         radius: radius,
         backgroundColor: const Color(0xFF6366F1),
         child: Text(
@@ -251,47 +264,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       );
-    }
-
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: const Color(0xFF374151),
-      child: ClipOval(
-        child: Image.network(
-          fullPhotoUrl,
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              color: const Color(0xFF6366F1),
-              child: Center(
-                child: Text(
-                  username[0].toUpperCase(),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: radius * 0.7,
-                    fontWeight: FontWeight.bold,
+    } else {
+      avatarWidget = CircleAvatar(
+        radius: radius,
+        backgroundColor: const Color(0xFF374151),
+        child: ClipOval(
+          child: Image.network(
+            fullPhotoUrl,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: const Color(0xFF6366F1),
+                child: Center(
+                  child: Text(
+                    username[0].toUpperCase(),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: radius * 0.7,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
-    );
+      );
+    }
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: avatarWidget,
+      );
+    }
+
+    return avatarWidget;
   }
 
   void _showSnackbar(String message) {
@@ -316,7 +338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUsername = _currentUser?['username'] ?? widget.user['username'];
-    final currentPhoto = _currentUser?['photo'];
+    final currentPhoto = _currentUser?['photo_profile'];
 
     return Scaffold(
       backgroundColor: const Color(0xFF111827),
@@ -339,11 +361,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.white,
                     ),
                   ),
-                  Text(
-                    'Welcome back, $currentUsername!',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9CA3AF),
+                  GestureDetector(
+                    onTap: () => _navigateToProfile(currentUsername),
+                    child: Text(
+                      'Welcome back, $currentUsername!',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9CA3AF),
+                      ),
                     ),
                   ),
                 ],
@@ -352,6 +377,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               pinned: true,
               floating: true,
               actions: [
+                IconButton(
+                  icon: _buildProfilePhoto(
+                    currentPhoto, 
+                    currentUsername, 
+                    radius: 16,
+                  ),
+                  onPressed: () => _navigateToProfile(currentUsername),
+                ),
                 IconButton(
                   icon: const Icon(Icons.logout, color: Colors.white),
                   onPressed: _logout,
@@ -374,7 +407,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildProfilePhoto(currentPhoto, currentUsername),
+                        _buildProfilePhoto(
+                          currentPhoto, 
+                          currentUsername,
+                          onTap: () => _navigateToProfile(currentUsername),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
@@ -569,11 +606,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   width: 16,
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  '${item['reposted_by']['username']} reposted',
-                                  style: const TextStyle(
-                                    color: Color(0xFF9CA3AF),
-                                    fontSize: 12,
+                                GestureDetector(
+                                  onTap: () => _navigateToProfile(item['reposted_by']['username']),
+                                  child: Text(
+                                    '${item['reposted_by']['username']} reposted',
+                                    style: const TextStyle(
+                                      color: Color(0xFF9CA3AF),
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -582,7 +622,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildProfilePhoto(user['photo'], user['username'], radius: 24),
+                            _buildProfilePhoto(
+                              user['photo_profile'], 
+                              user['username'], 
+                              radius: 24,
+                              onTap: () => _navigateToProfile(user['username']),
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -590,18 +635,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      Text(
-                                        user['username'],
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
+                                      GestureDetector(
+                                        onTap: () => _navigateToProfile(user['username']),
+                                        child: Text(
+                                          user['username'],
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        '@${user['username']}',
-                                        style: const TextStyle(
-                                          color: Color(0xFF9CA3AF),
+                                      GestureDetector(
+                                        onTap: () => _navigateToProfile(user['username']),
+                                        child: Text(
+                                          '@${user['username']}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF9CA3AF),
+                                          ),
                                         ),
                                       ),
                                       const Spacer(),
