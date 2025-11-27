@@ -72,9 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _navigateToProfile(String username) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ProfilePage(username: username),
-      ),
+      MaterialPageRoute(builder: (context) => ProfilePage(username: username)),
     );
   }
 
@@ -238,29 +236,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         padding: const EdgeInsets.all(24.0),
                         child: Text(
                           'No reposts yet',
-                          style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                          ),
                         ),
                       ),
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.all(12),
                       itemCount: reposts.length,
-                      separatorBuilder: (_, __) => const Divider(color: Colors.grey),
+                      separatorBuilder: (_, __) =>
+                          const Divider(color: Colors.grey),
                       itemBuilder: (context, index) {
                         final r = reposts[index];
-                        
+
                         // Debug print setiap item
                         print('Repost item $index: $r');
-                        
+
                         // Coba cari user dari berbagai struktur kemungkinan
                         String username = 'Unknown';
                         if (r is Map<String, dynamic>) {
                           // Kemungkinan 1: nested user object
-                          if (r['user'] is Map && r['user']['username'] != null) {
+                          if (r['user'] is Map &&
+                              r['user']['username'] != null) {
                             username = r['user']['username'];
                           }
                           // Kemungkinan 2: reposted_by object
-                          else if (r['reposted_by'] is Map && r['reposted_by']['username'] != null) {
+                          else if (r['reposted_by'] is Map &&
+                              r['reposted_by']['username'] != null) {
                             username = r['reposted_by']['username'];
                           }
                           // Kemungkinan 3: direct username field
@@ -268,14 +271,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             username = r['username'];
                           }
                         }
-                        
+
                         final createdAt = (r['created_at'] ?? '').toString();
 
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundColor: const Color(0xFF6366F1),
                             child: Text(
-                              username.isNotEmpty ? username[0].toUpperCase() : '?',
+                              username.isNotEmpty
+                                  ? username[0].toUpperCase()
+                                  : '?',
                               style: const TextStyle(color: Colors.white),
                             ),
                           ),
@@ -327,6 +332,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Tambahan: toggle like (post/delete) lalu reload timeline
+  Future<void> _toggleLike(dynamic threadId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      // Menggunakan endpoint toggle-like untuk efisiensi
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}/threads/$threadId/toggle-like'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Setelah berhasil, muat ulang timeline untuk memperbarui UI
+        await _loadTimeline();
+        // Feedback ke pengguna (opsional, bisa dihilangkan)
+        // _showSnackbar('Like status updated');
+      } else {
+        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        throw Exception(body['message'] ?? 'Failed to toggle like');
+      }
+    } catch (e) {
+      _showSnackbar('Error toggling like: ${e.toString()}');
+    }
+  }
+
   Widget _buildImageWidget(String? imageUrl) {
     if (imageUrl == null || imageUrl.isEmpty) return const SizedBox.shrink();
 
@@ -372,11 +406,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // Widget untuk menampilkan foto profil dengan navigation
-  Widget _buildProfilePhoto(String? photoUrl, String username, {double radius = 20, VoidCallback? onTap}) {
+  Widget _buildProfilePhoto(
+    String? photoUrl,
+    String username, {
+    double radius = 20,
+    VoidCallback? onTap,
+  }) {
     final fullPhotoUrl = _getProfilePhotoUrl(photoUrl);
-    
+
     Widget avatarWidget;
-    
+
     if (fullPhotoUrl.isEmpty) {
       avatarWidget = CircleAvatar(
         radius: radius,
@@ -433,10 +472,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     if (onTap != null) {
-      return GestureDetector(
-        onTap: onTap,
-        child: avatarWidget,
-      );
+      return GestureDetector(onTap: onTap, child: avatarWidget);
     }
 
     return avatarWidget;
@@ -463,7 +499,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUsername = _currentUser?['username'] ?? widget.user['username'];
+    final currentUsername =
+        _currentUser?['username'] ?? widget.user['username'];
     final currentPhoto = _currentUser?['photo_profile'];
 
     return Scaffold(
@@ -505,8 +542,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               actions: [
                 IconButton(
                   icon: _buildProfilePhoto(
-                    currentPhoto, 
-                    currentUsername, 
+                    currentPhoto,
+                    currentUsername,
                     radius: 16,
                   ),
                   onPressed: () => _navigateToProfile(currentUsername),
@@ -534,7 +571,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildProfilePhoto(
-                          currentPhoto, 
+                          currentPhoto,
                           currentUsername,
                           onTap: () => _navigateToProfile(currentUsername),
                         ),
@@ -746,8 +783,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildProfilePhoto(
-                              user['photo_profile'], 
-                              user['username'], 
+                              user['photo_profile'],
+                              user['username'],
                               radius: 24,
                               onTap: () => _navigateToProfile(user['username']),
                             ),
@@ -759,7 +796,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   Row(
                                     children: [
                                       GestureDetector(
-                                        onTap: () => _navigateToProfile(user['username']),
+                                        onTap: () => _navigateToProfile(
+                                          user['username'],
+                                        ),
                                         child: Text(
                                           user['username'],
                                           style: const TextStyle(
@@ -770,7 +809,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                       const SizedBox(width: 4),
                                       GestureDetector(
-                                        onTap: () => _navigateToProfile(user['username']),
+                                        onTap: () => _navigateToProfile(
+                                          user['username'],
+                                        ),
                                         child: Text(
                                           '@${user['username']}',
                                           style: const TextStyle(
@@ -814,25 +855,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                       // Ganti tombol repost supaya bisa tap untuk fetch dan longPress untuk toggle
                                       GestureDetector(
-                                        onTap: () => _toggleRepost(thread['id']),
-                                        onLongPress: () => _fetchAndShowReposts(thread['id']),
+                                        onTap: () =>
+                                            _toggleRepost(thread['id']),
+                                        onLongPress: () =>
+                                            _fetchAndShowReposts(thread['id']),
                                         child: _buildActionButton(
                                           Icons.repeat,
-                                          (thread['reposts_count'] ?? 0).toString(),
-                                          color: (thread['is_reposted'] ?? thread['reposted_by_me'] ?? false)
+                                          (thread['reposts_count'] ?? 0)
+                                              .toString(),
+                                          color:
+                                              (thread['is_reposted'] ??
+                                                  thread['reposted_by_me'] ??
+                                                  false)
                                               ? const Color(0xFF10B981)
                                               : null,
                                         ),
                                       ),
-                                      _buildActionButton(
-                                        thread['is_liked']
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        thread['likes_count'].toString(),
-                                        color: thread['is_liked']
-                                            ? const Color(0xFFEC4899)
-                                            : null,
+
+                                      // Aksi Like/Favorite
+                                      GestureDetector(
+                                        onTap: () => _toggleLike(thread['id']),
+                                        child: _buildActionButton(
+                                          thread['is_liked'] ==
+                                                  true // Menggunakan == true lebih eksplisit untuk boolean
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                          thread['likes_count'].toString(),
+                                          color: thread['is_liked'] == true
+                                              ? const Color(0xFFEC4899)
+                                              : null,
+                                        ),
                                       ),
+
                                       _buildActionButton(Icons.share, ''),
                                     ],
                                   ),
