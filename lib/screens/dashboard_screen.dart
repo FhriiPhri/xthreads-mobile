@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:xthreads_mobile/screens/login_screen.dart';
 import 'package:xthreads_mobile/screens/profile_screen.dart';
+import 'package:xthreads_mobile/screens/threads-detail_screen.dart';
 import 'package:xthreads_mobile/services/api_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -76,32 +77,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // Navigate ke thread detail page
+  void _navigateToThreadDetail(Map<String, dynamic> thread) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ThreadDetailScreen(thread: thread),
+      ),
+    ).then((_) => _loadTimeline()); // Reload timeline after returning
+  }
+
   Future<void> _logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
 
-      final response = await http.post(
-        Uri.parse(ApiService.baseUrl + '/auth/logout'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+      await prefs.remove('auth_token'); // hapus token DULU (pasti berhasil)
 
-      if (response.statusCode == 200) {
-        await prefs.remove('auth_token');
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+      // Coba request logout ke server, tapi kalau gagal... ya udah biarin
+      if (token != null) {
+        await http.post(
+          Uri.parse(ApiService.baseUrl + '/auth/logout'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
         );
-      } else {
-        throw Exception('Failed to logout');
       }
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
     } catch (e) {
-      _showSnackbar('Error logging out: ${e.toString()}');
+      // worst case: token tetep kehapus → user tetep logout
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
     }
   }
 
@@ -217,9 +231,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final data = jsonDecode(response.body);
         final reposts = data['data'] ?? [];
 
-        // Debug: lihat struktur response
-        print('Reposts Response: $reposts');
-
         if (!mounted) return;
         showModalBottomSheet(
           context: context,
@@ -250,24 +261,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       itemBuilder: (context, index) {
                         final r = reposts[index];
 
-                        // Debug print setiap item
-                        print('Repost item $index: $r');
-
-                        // Coba cari user dari berbagai struktur kemungkinan
                         String username = 'Unknown';
                         if (r is Map<String, dynamic>) {
-                          // Kemungkinan 1: nested user object
                           if (r['user'] is Map &&
                               r['user']['username'] != null) {
                             username = r['user']['username'];
-                          }
-                          // Kemungkinan 2: reposted_by object
-                          else if (r['reposted_by'] is Map &&
+                          } else if (r['reposted_by'] is Map &&
                               r['reposted_by']['username'] != null) {
                             username = r['reposted_by']['username'];
-                          }
-                          // Kemungkinan 3: direct username field
-                          else if (r['username'] != null) {
+                          } else if (r['username'] != null) {
                             username = r['username'];
                           }
                         }
@@ -338,7 +340,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
 
-      // Menggunakan endpoint toggle-like untuk efisiensi
       final response = await http.post(
         Uri.parse('${ApiService.baseUrl}/threads/$threadId/toggle-like'),
         headers: {
@@ -348,10 +349,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
 
       if (response.statusCode == 200) {
-        // Setelah berhasil, muat ulang timeline untuk memperbarui UI
         await _loadTimeline();
-        // Feedback ke pengguna (opsional, bisa dihilangkan)
-        // _showSnackbar('Like status updated');
       } else {
         final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
         throw Exception(body['message'] ?? 'Failed to toggle like');
@@ -405,7 +403,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Widget untuk menampilkan foto profil dengan navigation
   Widget _buildProfilePhoto(
     String? photoUrl,
     String username, {
@@ -506,11 +503,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF111827),
       body: RefreshIndicator(
+        displacement: 60, // jarak mulai refresh (biar ga terlalu sensitif)
+        edgeOffset: 0,
         onRefresh: () async {
           await _loadUserProfile();
           await _loadTimeline();
         },
         child: CustomScrollView(
+          physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             SliverAppBar(
               title: Column(
@@ -537,7 +537,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               backgroundColor: const Color(0xFF111827),
-              pinned: true,
+              snap: true, // ini yang bikin langsung balik ke posisi semula
+              stretch: false, // matiin stretch biar ga aneh
+              pinned: false,
+              elevation: 0,
+              forceElevated: false,
               floating: true,
               actions: [
                 IconButton(
@@ -849,11 +853,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceAround,
                                     children: [
-                                      _buildActionButton(
-                                        Icons.chat_bubble_outline,
-                                        thread['replies_count'].toString(),
+                                      // Comment button with navigation
+                                      GestureDetector(
+                                        onTap: () =>
+                                            _navigateToThreadDetail(thread),
+                                        child: _buildActionButton(
+                                          Icons.chat_bubble_outline,
+                                          thread['replies_count'].toString(),
+                                        ),
                                       ),
-                                      // Ganti tombol repost supaya bisa tap untuk fetch dan longPress untuk toggle
+
+                                      // Repost button
                                       GestureDetector(
                                         onTap: () =>
                                             _toggleRepost(thread['id']),
@@ -872,12 +882,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ),
                                       ),
 
-                                      // Aksi Like/Favorite
+                                      // Like button
                                       GestureDetector(
                                         onTap: () => _toggleLike(thread['id']),
                                         child: _buildActionButton(
-                                          thread['is_liked'] ==
-                                                  true // Menggunakan == true lebih eksplisit untuk boolean
+                                          thread['is_liked'] == true
                                               ? Icons.favorite
                                               : Icons.favorite_border,
                                           thread['likes_count'].toString(),

@@ -291,7 +291,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
           bottom: -60,
           left: 16,
           child: GestureDetector(
-            onTap: () => _pickImage(false),
+            onTap: () {
+              print("PP DI TAP");
+              _pickImage(false);
+            },
             child: Stack(
               children: [
                 Container(
