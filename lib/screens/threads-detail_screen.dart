@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 import 'package:xthreads_mobile/services/api_service.dart';
+import 'package:xthreads_mobile/screens/profile_screen.dart';
 
 class ThreadDetailScreen extends StatefulWidget {
   final Map<String, dynamic> thread;
@@ -87,8 +88,11 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
   }
 
   Future<void> _postReply() async {
-    if (_replyController.text.isEmpty && _selectedImage == null) {
-      _showSnackbar('Please enter text or select an image');
+    final text = _replyController.text.trim();
+
+    // Validasi di sini aja, bukan di onPressed
+    if (text.isEmpty && _selectedImage == null) {
+      _showSnackbar('Tulis sesuatu atau tambah gambar dulu ya');
       return;
     }
 
@@ -107,7 +111,8 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
       request.headers['Accept'] = 'application/json';
 
       request.fields['content'] = _replyController.text;
-      request.fields['parent_thread_id'] = (_replyingToId ?? widget.thread['id']).toString();
+      request.fields['parent_thread_id'] =
+          (_replyingToId ?? widget.thread['id']).toString();
 
       if (_selectedImage != null) {
         request.files.add(
@@ -117,6 +122,8 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
 
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
+      print("Response status: ${response.statusCode}");
+      print("Response body: $responseData"); // <--- INI PENTING
 
       if (response.statusCode == 201) {
         _replyController.clear();
@@ -168,7 +175,11 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     ).then((_) => _loadThreadDetail());
   }
 
-  Widget _buildProfilePhoto(String? photoUrl, String username, {double radius = 20}) {
+  Widget _buildProfilePhoto(
+    String? photoUrl,
+    String username, {
+    double radius = 20,
+  }) {
     if (photoUrl == null || photoUrl.isEmpty) {
       return CircleAvatar(
         radius: radius,
@@ -226,9 +237,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
           return Container(
             height: 200,
             color: const Color(0xFF374151),
-            child: const Center(
-              child: Icon(Icons.error, color: Colors.red),
-            ),
+            child: const Center(child: Icon(Icons.error, color: Colors.red)),
           );
         },
       ),
@@ -249,17 +258,25 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
   }
 
   void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _setReplyingTo(String username, int threadId) {
     setState(() {
       _replyingToUsername = username;
       _replyingToId = threadId;
-      _replyController.text = '@$username ';
     });
+
+    // Set text + pindahin kursor ke akhir
+    _replyController.text = '@$username ';
+    _replyController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _replyController.text.length),
+    );
+
+    // Pastiin fokus
+    FocusScope.of(context).requestFocus(FocusNode());
   }
 
   @override
@@ -270,10 +287,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
         backgroundColor: const Color(0xFF111827),
         title: const Text(
           'Thread',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -288,13 +302,16 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      _buildThreadCard(_threadDetail ?? widget.thread, isMainThread: true),
-                      
+                      _buildThreadCard(
+                        _threadDetail ?? widget.thread,
+                        isMainThread: true,
+                      ),
+
                       const SizedBox(height: 16),
-                      
+
                       if (_replies.isNotEmpty)
                         const Divider(color: Color(0xFF374151), thickness: 1),
-                      
+
                       if (_replies.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -307,28 +324,33 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                             ),
                           ),
                         ),
-                      
-                      ..._replies.map((reply) => _buildReplyCard(reply)).toList(),
+
+                      ..._replies
+                          .map((reply) => _buildReplyCard(reply))
+                          .toList(),
                     ],
                   ),
                 ),
-                
+
                 _buildReplyInputBox(),
               ],
             ),
     );
   }
 
-  Widget _buildThreadCard(Map<String, dynamic> thread, {bool isMainThread = false}) {
+  Widget _buildThreadCard(
+    Map<String, dynamic> thread, {
+    bool isMainThread = false,
+  }) {
     final user = thread['user'];
-    
+
     return Container(
       padding: EdgeInsets.all(isMainThread ? 20 : 16),
       decoration: BoxDecoration(
         color: const Color(0xFF1F2937).withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isMainThread 
+          color: isMainThread
               ? const Color(0xFF6366F1).withOpacity(0.3)
               : const Color(0xFF374151).withOpacity(0.5),
           width: isMainThread ? 2 : 1,
@@ -369,10 +391,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
               ),
               Text(
                 _formatTime(thread['created_at']),
-                style: const TextStyle(
-                  color: Color(0xFF9CA3AF),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 12),
               ),
             ],
           ),
@@ -402,9 +421,13 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                 thread['reposts_count']?.toString() ?? '0',
               ),
               _buildActionButton(
-                thread['is_liked'] == true ? Icons.favorite : Icons.favorite_border,
+                thread['is_liked'] == true
+                    ? Icons.favorite
+                    : Icons.favorite_border,
                 thread['likes_count']?.toString() ?? '0',
-                color: thread['is_liked'] == true ? const Color(0xFFEC4899) : null,
+                color: thread['is_liked'] == true
+                    ? const Color(0xFFEC4899)
+                    : null,
                 onTap: () => _toggleLike(thread['id']),
               ),
               _buildActionButton(Icons.share, ''),
@@ -418,7 +441,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
   Widget _buildReplyCard(Map<String, dynamic> reply) {
     final user = reply['user'];
     final repliesCount = reply['replies_count'] ?? 0;
-    
+
     return GestureDetector(
       onTap: repliesCount > 0 ? () => _navigateToReplyDetail(reply) : null,
       child: Container(
@@ -427,9 +450,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF1F2937).withOpacity(0.3),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF374151).withOpacity(0.3),
-          ),
+          border: Border.all(color: const Color(0xFF374151).withOpacity(0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,16 +519,20 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                   Icons.chat_bubble_outline,
                   repliesCount > 0 ? repliesCount.toString() : '',
                   isSmall: true,
-                  onTap: repliesCount > 0 
+                  onTap: repliesCount > 0
                       ? () => _navigateToReplyDetail(reply)
                       : () => _setReplyingTo(user['username'], reply['id']),
                 ),
                 const SizedBox(width: 24),
                 _buildActionButton(
-                  reply['is_liked'] == true ? Icons.favorite : Icons.favorite_border,
+                  reply['is_liked'] == true
+                      ? Icons.favorite
+                      : Icons.favorite_border,
                   reply['likes_count']?.toString() ?? '0',
                   isSmall: true,
-                  color: reply['is_liked'] == true ? const Color(0xFFEC4899) : null,
+                  color: reply['is_liked'] == true
+                      ? const Color(0xFFEC4899)
+                      : null,
                   onTap: () => _toggleLike(reply['id']),
                 ),
                 if (repliesCount > 0) ...[
@@ -555,10 +580,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
     );
 
     if (onTap != null) {
-      return GestureDetector(
-        onTap: onTap,
-        child: widget,
-      );
+      return GestureDetector(onTap: onTap, child: widget);
     }
 
     return widget;
@@ -569,9 +591,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1F2937),
         border: Border(
-          top: BorderSide(
-            color: const Color(0xFF374151).withOpacity(0.5),
-          ),
+          top: BorderSide(color: const Color(0xFF374151).withOpacity(0.5)),
         ),
       ),
       child: SafeArea(
@@ -580,15 +600,14 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
           children: [
             if (_replyingToUsername != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 color: const Color(0xFF374151).withOpacity(0.3),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.reply,
-                      color: Color(0xFF818CF8),
-                      size: 16,
-                    ),
+                    const Icon(Icons.reply, color: Color(0xFF818CF8), size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -662,7 +681,10 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                 children: [
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF374151).withOpacity(0.5),
                         borderRadius: BorderRadius.circular(24),
@@ -711,10 +733,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen> {
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: IconButton(
-                      onPressed: _isPosting ||
-                              (_replyController.text.isEmpty && _selectedImage == null)
-                          ? null
-                          : _postReply,
+                      onPressed: _isPosting ? null : _postReply,
                       icon: _isPosting
                           ? const SizedBox(
                               width: 20,

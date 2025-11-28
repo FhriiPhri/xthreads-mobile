@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
+import 'package:xthreads_mobile/services/api_service.dart';
+
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
 
@@ -15,7 +17,7 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
-  static const String baseUrl = "http://192.168.110.126:8000/api";
+  static const String baseUrl = ApiService.baseUrl;
 
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _usernameController;
@@ -40,9 +42,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _emailController = TextEditingController(
       text: widget.userData['email'] ?? '',
     );
-    _bioController = TextEditingController(
-      text: widget.userData['bio'] ?? '',
-    );
+    _bioController = TextEditingController(text: widget.userData['bio'] ?? '');
     _locationController = TextEditingController(
       text: widget.userData['location'] ?? '',
     );
@@ -124,7 +124,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -133,7 +133,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               duration: Duration(seconds: 2),
             ),
           );
-          
+
           // Return updated user data
           Navigator.pop(context, data['data']['user']);
         }
@@ -169,10 +169,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         title: const Text(
           'Edit Profile',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
           TextButton(
@@ -237,30 +234,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
             child: _coverImage != null
                 ? Image.file(_coverImage!, fit: BoxFit.cover)
                 : _currentCoverPhoto != null
-                    ? Image.network(_currentCoverPhoto!, fit: BoxFit.cover)
-                    : Container(
-                        color: Colors.black26,
-                        child: const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add_photo_alternate,
-                                color: Colors.white,
-                                size: 48,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Add cover photo',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+                ? Image.network(_currentCoverPhoto!, fit: BoxFit.cover)
+                : Container(
+                    color: Colors.black26,
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_photo_alternate,
+                            color: Colors.white,
+                            size: 48,
                           ),
-                        ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Add cover photo',
+                            style: TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                        ],
                       ),
+                    ),
+                  ),
           ),
         ),
 
@@ -311,8 +305,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     backgroundImage: _profileImage != null
                         ? FileImage(_profileImage!)
                         : _currentProfilePhoto != null
-                            ? NetworkImage(_currentProfilePhoto!)
-                            : null,
+                        ? NetworkImage(_currentProfilePhoto!)
+                        : null,
                     child: _profileImage == null && _currentProfilePhoto == null
                         ? const Icon(
                             Icons.person,
@@ -423,9 +417,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF374151).withOpacity(0.3),
-        ),
+        border: Border.all(color: const Color(0xFF374151).withOpacity(0.3)),
       ),
       child: TextFormField(
         controller: controller,
@@ -454,9 +446,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.red.withOpacity(0.3),
-        ),
+        border: Border.all(color: Colors.red.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,10 +468,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           const SizedBox(height: 12),
           const Text(
             'Once you delete your account, there is no going back. Please be certain.',
-            style: TextStyle(
-              color: Color(0xFF6B7280),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -516,10 +503,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           children: [
             Icon(Icons.warning_amber, color: Colors.red),
             SizedBox(width: 8),
-            Text(
-              'Delete Account',
-              style: TextStyle(color: Colors.white),
-            ),
+            Text('Delete Account', style: TextStyle(color: Colors.white)),
           ],
         ),
         content: const Text(
@@ -544,10 +528,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
               );
             },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

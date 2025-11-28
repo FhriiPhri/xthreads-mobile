@@ -92,30 +92,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
 
-      await prefs.remove('auth_token'); // hapus token DULU (pasti berhasil)
+      final response = await http.post(
+        Uri.parse(ApiService.baseUrl + '/auth/logout'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
 
-      // Coba request logout ke server, tapi kalau gagal... ya udah biarin
-      if (token != null) {
-        await http.post(
-          Uri.parse(ApiService.baseUrl + '/auth/logout'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
+      if (response.statusCode == 200) {
+        await prefs.remove('auth_token');
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
+      } else {
+        throw Exception('Failed to logout');
       }
-
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
     } catch (e) {
-      // worst case: token tetep kehapus → user tetep logout
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+      _showSnackbar('Error logging out: ${e.toString()}');
     }
   }
 
@@ -503,14 +500,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF111827),
       body: RefreshIndicator(
-        displacement: 60, // jarak mulai refresh (biar ga terlalu sensitif)
-        edgeOffset: 0,
         onRefresh: () async {
           await _loadUserProfile();
           await _loadTimeline();
         },
         child: CustomScrollView(
-          physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             SliverAppBar(
               title: Column(
@@ -537,11 +531,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               backgroundColor: const Color(0xFF111827),
-              snap: true, // ini yang bikin langsung balik ke posisi semula
-              stretch: false, // matiin stretch biar ga aneh
-              pinned: false,
-              elevation: 0,
-              forceElevated: false,
+              pinned: true,
               floating: true,
               actions: [
                 IconButton(
@@ -855,18 +845,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     children: [
                                       // Comment button with navigation
                                       GestureDetector(
-                                        onTap: () =>
-                                            _navigateToThreadDetail(thread),
+                                        onTap: () => _navigateToThreadDetail(thread),
                                         child: _buildActionButton(
                                           Icons.chat_bubble_outline,
                                           thread['replies_count'].toString(),
                                         ),
                                       ),
-
+                                      
                                       // Repost button
                                       GestureDetector(
-                                        onTap: () =>
-                                            _toggleRepost(thread['id']),
+                                        onTap: () => _toggleRepost(thread['id']),
                                         onLongPress: () =>
                                             _fetchAndShowReposts(thread['id']),
                                         child: _buildActionButton(

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:xthreads_mobile/screens/edit-profile_screen.dart';
+import 'package:xthreads_mobile/services/api_service.dart';
 // Import EditProfilePage - adjust path as needed
 // import 'edit_profile_page.dart';
 
@@ -18,7 +19,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
-  static const String baseUrl = "http://192.168.110.126:8000/api";
+  static const String baseUrl = ApiService.baseUrl;
 
   late TabController _tabController;
   bool _isLoading = true;
