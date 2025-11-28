@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:xthreads_mobile/screens/edit-profile_screen.dart';
+import 'package:xthreads_mobile/screens/followers_screen.dart';
 import 'package:xthreads_mobile/services/api_service.dart';
 // Import EditProfilePage - adjust path as needed
 // import 'edit_profile_page.dart';
@@ -18,7 +19,8 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
   static const String baseUrl = ApiService.baseUrl;
 
   late TabController _tabController;
@@ -60,11 +62,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
       if (meResponse.statusCode == 200) {
         final meData = jsonDecode(meResponse.body);
-        
-        final currentUsername = meData['data']?['user']?['username'] ?? 
-                                meData['user']?['username'] ?? '';
-        final currentUserId = meData['data']?['user']?['id'] ?? 
-                              meData['user']?['id'];
+
+        final currentUsername =
+            meData['data']?['user']?['username'] ??
+            meData['user']?['username'] ??
+            '';
+        final currentUserId =
+            meData['data']?['user']?['id'] ?? meData['user']?['id'];
 
         String targetIdentifier;
         if (widget.userId != null) {
@@ -93,12 +97,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           setState(() {
             _userData = profileData['data']?['user'] ?? profileData['user'];
             _allThreads = List.from(timeline);
-            
+
             // Filter for different tabs
             _replies = timeline.where((t) => t['type'] == 'reply').toList();
             _media = timeline.where((t) => t['image'] != null).toList();
             _likes = timeline.where((t) => t['is_liked'] == true).toList();
-            
+
             _isFollowing = profileData['data']?['is_following'] ?? false;
             _isLoading = false;
           });
@@ -132,14 +136,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       if (response.statusCode == 200) {
         setState(() {
           _isFollowing = true;
-          _userData!['followers_count'] = (_userData!['followers_count'] ?? 0) + 1;
+          _userData!['followers_count'] =
+              (_userData!['followers_count'] ?? 0) + 1;
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -160,14 +165,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       if (response.statusCode == 200) {
         setState(() {
           _isFollowing = false;
-          _userData!['followers_count'] = (_userData!['followers_count'] ?? 1) - 1;
+          _userData!['followers_count'] =
+              (_userData!['followers_count'] ?? 1) - 1;
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -193,26 +199,32 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       }
 
       if (index >= targetList.length) return;
-      
+
       final isLiked = targetList[index]['is_liked'] == true;
-      final url = isLiked 
+      final url = isLiked
           ? '$baseUrl/threads/$threadId/like'
           : '$baseUrl/threads/$threadId/like';
-      
+
       final response = isLiked
-          ? await http.delete(Uri.parse(url), headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            })
-          : await http.post(Uri.parse(url), headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            });
+          ? await http.delete(
+              Uri.parse(url),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            )
+          : await http.post(
+              Uri.parse(url),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            );
 
       if (response.statusCode == 200) {
         setState(() {
           targetList[index]['is_liked'] = !isLiked;
-          targetList[index]['likes_count'] = 
+          targetList[index]['likes_count'] =
               (targetList[index]['likes_count'] ?? 0) + (isLiked ? -1 : 1);
         });
       }
@@ -290,10 +302,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               ),
               Text(
                 '$threadsCount threads',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
               ),
             ],
           ),
@@ -480,14 +489,42 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
                       const SizedBox(height: 16),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildStat('Following', followingCount),
-                          const SizedBox(width: 24),
-                          _buildStat('Followers', followersCount),
-                          const SizedBox(width: 24),
-                          _buildStat('Threads', threadsCount),
-                          const SizedBox(width: 24),
-                          _buildStat('Likes', likesCount),
+                          _buildStat(
+                            'Following',
+                            followingCount,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FollowersFollowingScreen(
+                                    username: _userData!['username'],
+                                    initialTab:
+                                        1, // langsung buka tab "Following"
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildStat(
+                            'Followers',
+                            followersCount,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FollowersFollowingScreen(
+                                    username: _userData!['username'],
+                                    initialTab:
+                                        0, // langsung buka tab "Followers"
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildStat('Threads', threadsCount, onTap: () {}),
+                          _buildStat('Likes', likesCount, onTap: () {}),
                         ],
                       ),
                     ],
@@ -544,16 +581,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               builder: (context) => EditProfilePage(userData: _userData!),
             ),
           );
-          
+
           // Update local data immediately with new data from edit page
           if (updatedUser != null && mounted) {
             setState(() {
-              _userData = {
-                ..._userData!,
-                ...updatedUser,
-              };
+              _userData = {..._userData!, ...updatedUser};
             });
-            
+
             // Show success message
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -580,36 +614,41 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     return ElevatedButton(
       onPressed: _isFollowing ? _unfollowUser : _followUser,
       style: ElevatedButton.styleFrom(
-        backgroundColor: _isFollowing ? const Color(0xFF374151) : const Color(0xFF3B82F6),
+        backgroundColor: _isFollowing
+            ? const Color(0xFF374151)
+            : const Color(0xFF3B82F6),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       child: Text(_isFollowing ? 'Following' : 'Follow'),
     );
   }
 
-  Widget _buildStat(String label, int count) {
-    return Column(
-      children: [
-        Text(
-          count.toString(),
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+  Widget _buildStat(String label, int count, {required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          children: [
+            Text(
+              _formatCount(count),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+            ),
+          ],
         ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF6B7280),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -657,10 +696,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             const SizedBox(height: 16),
             Text(
               _getEmptyMessage(tabType),
-              style: const TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 16,
-              ),
+              style: const TextStyle(color: Color(0xFF6B7280), fontSize: 16),
             ),
           ],
         ),
@@ -677,19 +713,26 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildThreadCard(Map<String, dynamic> thread, int index, String tabType) {
+  Widget _buildThreadCard(
+    Map<String, dynamic> thread,
+    int index,
+    String tabType,
+  ) {
     final threadType = thread['type'];
     final isRepost = threadType == 'repost';
-    
+
     // For repost, get original author and reposter info
-    final originalUser = isRepost ? (thread['original_user'] ?? {}) : (thread['user'] ?? {});
+    final originalUser = isRepost
+        ? (thread['original_user'] ?? {})
+        : (thread['user'] ?? {});
     final repostedBy = isRepost ? (thread['reposted_by'] ?? {}) : null;
-    
-    final username = originalUser['username'] ?? _userData?['username'] ?? 'Unknown';
+
+    final username =
+        originalUser['username'] ?? _userData?['username'] ?? 'Unknown';
     final authorPhoto = originalUser['photo'];
     final reposterUsername = repostedBy?['username'];
     final reposterPhoto = repostedBy?['photo'];
-    
+
     final content = thread['body'] ?? thread['content'] ?? '';
     final image = thread['image'];
     final likesCount = thread['likes_count'] ?? 0;
@@ -703,9 +746,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF374151).withOpacity(0.3),
-        ),
+        border: Border.all(color: const Color(0xFF374151).withOpacity(0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -717,11 +758,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               Row(
                 children: [
                   const SizedBox(width: 8),
-                  const Icon(
-                    Icons.repeat,
-                    size: 14,
-                    color: Color(0xFF6B7280),
-                  ),
+                  const Icon(Icons.repeat, size: 14, color: Color(0xFF6B7280)),
                   const SizedBox(width: 8),
                   // Reposter avatar (small)
                   Container(
@@ -768,15 +805,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               ),
               const SizedBox(height: 12),
             ],
-            
+
             // Original post header
             Row(
               children: [
                 // Original author avatar
                 CircleAvatar(
                   radius: 20,
-                  backgroundImage: authorPhoto != null 
-                      ? NetworkImage(authorPhoto) 
+                  backgroundImage: authorPhoto != null
+                      ? NetworkImage(authorPhoto)
                       : null,
                   backgroundColor: const Color(0xFF3B82F6),
                   child: authorPhoto == null
@@ -813,10 +850,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(
-                    Icons.more_horiz,
-                    color: Color(0xFF6B7280),
-                  ),
+                  icon: const Icon(Icons.more_horiz, color: Color(0xFF6B7280)),
                   onPressed: () {
                     // TODO: Show options menu
                   },
@@ -955,10 +989,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             SizedBox(height: 16),
             Text(
               'No media yet',
-              style: TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 16,
-              ),
+              style: TextStyle(color: Color(0xFF6B7280), fontSize: 16),
             ),
           ],
         ),
@@ -995,10 +1026,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 )
               : Container(
                   color: const Color(0xFF374151),
-                  child: const Icon(
-                    Icons.image,
-                    color: Color(0xFF6B7280),
-                  ),
+                  child: const Icon(Icons.image, color: Color(0xFF6B7280)),
                 ),
         );
       },

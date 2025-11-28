@@ -845,16 +845,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     children: [
                                       // Comment button with navigation
                                       GestureDetector(
-                                        onTap: () => _navigateToThreadDetail(thread),
+                                        onTap: () =>
+                                            _navigateToThreadDetail(thread),
                                         child: _buildActionButton(
                                           Icons.chat_bubble_outline,
                                           thread['replies_count'].toString(),
                                         ),
                                       ),
-                                      
+
                                       // Repost button
                                       GestureDetector(
-                                        onTap: () => _toggleRepost(thread['id']),
+                                        onTap: () =>
+                                            _toggleRepost(thread['id']),
                                         onLongPress: () =>
                                             _fetchAndShowReposts(thread['id']),
                                         child: _buildActionButton(
