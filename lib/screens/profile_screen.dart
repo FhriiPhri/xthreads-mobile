@@ -487,45 +487,81 @@ class _ProfilePageState extends State<ProfilePage>
                         ],
                       ),
 
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildStat(
-                            'Following',
-                            followingCount,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => FollowersFollowingScreen(
-                                    username: _userData!['username'],
-                                    initialTab:
-                                        1, // langsung buka tab "Following"
-                                  ),
-                                ),
-                              );
-                            },
+                      // GANTI bagian SizedBox(height: 70, ...) dengan kode di bawah ini
+                      const SizedBox(height: 16), // jarak sebelum statistik
+                      // ==== STATISTIK YANG RESPONSIF & ANTI OVERFLOW ====
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1A1A),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF374151).withOpacity(0.5),
                           ),
-                          _buildStat(
-                            'Followers',
-                            followersCount,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => FollowersFollowingScreen(
-                                    username: _userData!['username'],
-                                    initialTab:
-                                        0, // langsung buka tab "Followers"
-                                  ),
+                        ),
+                        child: IntrinsicHeight(
+                          // biar divider ikut tinggi konten
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _buildClickableStat(
+                                  'Following',
+                                  followingCount,
+                                  () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            FollowersFollowingScreen(
+                                              username: _userData!['username'],
+                                              initialTab: 1,
+                                            ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
+                              ),
+                              _verticalDivider(),
+                              Expanded(
+                                child: _buildClickableStat(
+                                  'Followers',
+                                  followersCount,
+                                  () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            FollowersFollowingScreen(
+                                              username: _userData!['username'],
+                                              initialTab: 0,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              _verticalDivider(),
+                              Expanded(
+                                child: _buildClickableStat(
+                                  'Threads',
+                                  threadsCount,
+                                  () {},
+                                ),
+                              ),
+                              _verticalDivider(),
+                              Expanded(
+                                child: _buildClickableStat(
+                                  'Likes',
+                                  likesCount,
+                                  () {},
+                                ),
+                              ),
+                            ],
                           ),
-                          _buildStat('Threads', threadsCount, onTap: () {}),
-                          _buildStat('Likes', likesCount, onTap: () {}),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -681,6 +717,33 @@ class _ProfilePageState extends State<ProfilePage>
       ),
     );
   }
+
+  Widget _buildClickableStat(String label, int count, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            _formatCount(count),
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _verticalDivider() =>
+      Container(width: 1, height: 36, color: const Color(0xFF374151));
 
   Widget _buildThreadsList(List<dynamic> threads, String tabType) {
     if (threads.isEmpty) {
