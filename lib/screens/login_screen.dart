@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:xthreads_mobile/screens/register_screen.dart';
 import 'package:xthreads_mobile/services/api_service.dart';
 import 'dashboard_screen.dart'; // Make sure this import points to your DashboardScreen
 
@@ -417,6 +418,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                   ),
                 ),
+
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const RegisterScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    "Don't have an account? Sign up",
+                    style: TextStyle(color: Color(0xFF818CF8)),
+                  ),
+                ),
               ],
             ),
           ),
@@ -424,6 +440,8 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  
 
   @override
   void dispose() {
